@@ -1,5 +1,8 @@
 #!/bin/bash
 # 获得执行时间
+allhosts_cnf="/tmp/all/allhosts.cnf"
+masterinfo_list=($(cat ${allhosts_cnf}| awk -F "=" '/^master_host/{print $2}'))
+allhosts="$(cat ${allhosts_cnf}| awk -F "=" '/^allhosts/{print $2}')"
 date_time=$(date +%Y%m%d%H%M%S)
 # 获取主机IP
 host_ip=$(ifconfig -a | grep "inet addr" |tr -s " "|cut -d : -f 2 |cut -d " " -f 1 | grep -v "127.0.0.1"|head -1)
@@ -135,28 +138,38 @@ write_csv(){
 #打包拷贝
 info_copy(){
     log_head [info_copy] [start]
-    masterinfo_list=($(cat /tmp/all/master_host))
-    if [[ ${masterinfo_list[0]}!=${host_ip} ]]
+    echo "${masterinfo_list[0]}"
+    echo "${host_ip}"
+    #判断时候记得空格,否则判断失误
+    if [[ ${masterinfo_list[0]} != ${host_ip} ]]
     then
         expect -c "
-        spawn scp -r /tmp/${host_ip} ${masterinfo_list[1]}@${masterinfo_list[0]}:/allhosts
+        #不加/,加了以后导致不将整个ip文件夹复制到allhosts中,而是单独复制文件
+        spawn scp -r /tmp/${host_ip} ${masterinfo_list[1]}@${masterinfo_list[0]}:${allhosts}
         expect {
             \"*(yes/no)?\" {send \"yes\r\" ; exp_continue}
             \"*password:\" {send \"${masterinfo_list[2]}\r\" ; exp_continue}
         } 
     " 
+    del_info &>>  /tmp/${host_ip}.log
     else
-        cp -r /tmp/${host_ip} /allhosts
+        mkdir ${allhosts}
+        cp -rf /tmp/${host_ip} /allhosts/
+        rm -rf /tmp/${host_ip}
     fi
        
     log_head [info_copy] [stop]
 }
-
+del_info(){
+    rm -rf /tmp/${host_ip}
+    rm -rf /tmp/all
+}
 main(){
     write_osinfo   &>>/tmp/${host_ip}.log
     get_health &>>/tmp/${host_ip}.log
     write_csv &> /tmp/${host_ip}/$(hostname)_$(date +%Y%m%d%H%M%S)_HealthReport.csv
     info_copy &>> /tmp/${host_ip}.log
+
 }
 main
 
