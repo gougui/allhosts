@@ -1,6 +1,16 @@
 #!/bin/bash
 #将脚本分发到每台主机上
 #执行本机
+#为cat提供参数
+allhosts_cnf="/tmp/all/allhosts.cnf"
+#存放 各个主机信息的目录
+allhosts="$(cat ${allhosts_cnf}| awk -F "=" '/^allhosts/{print $2}')"
+#备份主机
+backup_host_list=($(cat ${allhosts_cnf}| awk -F "=" '/^backup_host/{print $2}'))
+#备份目录
+backup_dir="$(cat ${allhosts_cnf}| awk -F "=" '/^backup_dir/{print $2}')"
+
+
 # 获取主机IP
 host_ip=$(ifconfig -a | grep "inet addr" |tr -s " "|cut -d : -f 2 |cut -d " " -f 1 | grep -v "127.0.0.1"|head -1)
 #日志函数 log_head [write_osinfo] [start] 第二个带参数
@@ -36,6 +46,29 @@ do
     " &>>/tmp/${host_ip}.log
     log_head [copy_all_scripts] [stop]
 done < ./slave_hosts
+#使用rsync同步.
+#需要手动创建备份文件夹,使用spawn
+rsync_allhosts(){
 
+   expect -c "
+    spawn   ssh ${backup_host_list[0]}
+     expect {
+            \"*(yes/no)?\" {send \"yes\r\" ; exp_continue}
+            \"*password:\" {send \"${backup_host_list[2]}\r\" ; exp_continue}
+        }; 
+        expect \"*]#\" { send \"mkdir -p ${backup_dir}\r\"};            
+        expect \"*]#\" { send \"exit\r\"};
+        expect eof;
+    "
 
+    expect -c "
+    spawn   rsync -avz ${allhosts} ${backup_host_list[1]}@${backup_host_list[0]}:${backup_dir}
+     expect {
+            \"*(yes/no)?\" {send \"yes\r\" ; exp_continue}
+            \"*password:\" {send \"${backup_host_list[2]}\r\" ; exp_continue}
+        } 
+    "
+}
+
+rsync_allhosts &>>/tmp/${host_ip}.log
 #

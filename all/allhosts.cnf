@@ -1,6 +1,7 @@
 #运行主机的ip,用于rsync和scp,用于
-master_host=192.168.1.12  root 1
+master_host=192.168.0.11  root 1
 #备份主机的ip,用于存储备份的机器
-backup_host=192.168.1.22  root 1
+backup_host=192.168.0.13  root 1
+backup_dir=/backup/system_check/
 #运行主机指定存放所有返回目录的敌法
 allhosts=/allhosts
